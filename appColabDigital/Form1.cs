@@ -8,6 +8,8 @@ namespace appColabDigital
     {
         // Almacenamiento en memoria (para simplicidad)
         private readonly Dictionary<string, User> _users = new();
+        private readonly List<AppTask> _tasks = new();
+        private readonly List<AppEvent> _events = new();
         private User? _currentUser;
 
         // Constantes de seguridad
@@ -18,6 +20,9 @@ namespace appColabDigital
         private Panel pnlLogin, pnlRegister, pnlMain;
         private TextBox txtLoginUser, txtLoginPassword;
         private TextBox txtRegisterUser, txtRegisterPassword;
+        private ListBox lbTasks, lbEvents;
+        private TextBox txtTaskDescription, txtEventDescription;
+        private DateTimePicker dtpEventDate;
 
         public Form1()
         {
@@ -29,7 +34,7 @@ namespace appColabDigital
         private void InitializeUI()
         {
             this.Text = "Herramienta de Colaboración Digital";
-            this.Size = new Size(800, 400);
+            this.Size = new Size(800, 600);
             this.FormBorderStyle = FormBorderStyle.FixedSingle;
             this.StartPosition = FormStartPosition.CenterScreen;
 
@@ -60,13 +65,35 @@ namespace appColabDigital
                 CreateLink("Volver a Inicio de Sesión", new Point(350, 250), (s, e) => ShowPanel(pnlLogin))
             });
 
-            // Panel Principal (post-inicio de sesión)
+            // Panel Principal
             pnlMain = new Panel { Dock = DockStyle.Fill, Visible = false };
-            var lblWelcome = new Label { Text = "Bienvenido", Font = new Font("Segoe UI", 14, FontStyle.Bold), Location = new Point(20, 20), Size = new Size(600, 30) };
-            var btnLogout = CreateButton("Cerrar Sesión", new Point(650, 20), LogoutButton_Click);
+            var lblWelcome = new Label { Text = "Bienvenido", Font = new Font("Segoe UI", 14, FontStyle.Bold), Location = new Point(20, 10), Size = new Size(400, 30) };
+            pnlMain.Controls.Add(lblWelcome);
+
+            //Sección de Tareas
+            pnlMain.Controls.AddRange(new Control[]
+            {
+                new Label { Text = "Asignar Tarea", Font = new Font("Segoe UI", 12, FontStyle.Bold), Location = new Point(20, 60) },
+                txtTaskDescription = new TextBox { PlaceholderText = "Describe la tarea y menciona a alguien con @usuario...", Location = new Point(20, 90), Size = new Size(350, 23) },
+                CreateButton("Asignar", new Point(380, 89), AssignTask_Click),
+                new Label { Text = "Tareas Asignadas", Font = new Font("Segoe UI", 10), Location = new Point(20, 130) },
+                lbTasks = new ListBox { Location = new Point(20, 150), Size = new Size(740, 150) }
+            });
+
+            //Sección de Eventos
+            pnlMain.Controls.AddRange(new Control[]
+            {
+                new Label { Text = "Añadir Evento", Font = new Font("Segoe UI", 12, FontStyle.Bold), Location = new Point(20, 320) },
+                txtEventDescription = new TextBox { PlaceholderText = "Descripción del evento...", Location = new Point(20, 350), Size = new Size(350, 23) },
+                dtpEventDate = new DateTimePicker { Location = new Point(380, 350), Size = new Size(200, 23), Format = DateTimePickerFormat.Short },
+                CreateButton("Añadir", new Point(590, 349), AddEvent_Click),
+                new Label { Text = "Próximos Eventos", Font = new Font("Segoe UI", 10), Location = new Point(20, 390) },
+                lbEvents = new ListBox { Location = new Point(20, 410), Size = new Size(740, 100) }
+            });
+
+            var btnLogout = CreateButton("Cerrar Sesión", new Point(650, 10), LogoutButton_Click);
             btnLogout.BackColor = Color.IndianRed;
             btnLogout.ForeColor = Color.White;
-            pnlMain.Controls.Add(lblWelcome);
             pnlMain.Controls.Add(btnLogout);
 
             this.Controls.AddRange(new Control[] { pnlLogin, pnlRegister, pnlMain });
@@ -83,6 +110,7 @@ namespace appColabDigital
             {
                 var welcomeLabel = pnlMain.Controls.OfType<Label>().FirstOrDefault(lbl => lbl.Text.StartsWith("Bienvenido"));
                 if (welcomeLabel != null) welcomeLabel.Text = $"Bienvenido, {_currentUser.Username}";
+                RefreshLists();
             }
         }
 
@@ -203,6 +231,59 @@ namespace appColabDigital
         }
         #endregion
 
+        #region Lógica de la Aplicación Principal
+        private void AssignTask_Click(object? sender, EventArgs e)
+        {
+            if (_currentUser == null) return;
+
+            var description = txtTaskDescription.Text;
+            if (string.IsNullOrWhiteSpace(description))
+            {
+                MessageBox.Show("La descripción de la tarea no puede estar vacía.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            var newTask = new AppTask(description, _currentUser.Username);
+            _tasks.Add(newTask);
+            RefreshLists();
+            txtTaskDescription.Clear();
+        }
+
+        private void AddEvent_Click(object? sender, EventArgs e)
+        {
+            if (_currentUser == null) return;
+
+            var description = txtEventDescription.Text;
+            var eventDate = dtpEventDate.Value;
+
+            if (string.IsNullOrWhiteSpace(description))
+            {
+                MessageBox.Show("La descripción del evento no puede estar vacía.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            var newEvent = new AppEvent(description, eventDate, _currentUser.Username);
+            _events.Add(newEvent);
+            RefreshLists();
+            txtEventDescription.Clear();
+        }
+
+        private void RefreshLists()
+        {
+            lbTasks.Items.Clear();
+            foreach (var task in _tasks.OrderByDescending(t => t.Timestamp))
+            {
+                lbTasks.Items.Add(task.ToString());
+            }
+
+            lbEvents.Items.Clear();
+            foreach (var ev in _events.OrderBy(e => e.EventDate))
+            {
+                lbEvents.Items.Add(ev.ToString());
+            }
+        }
+        #endregion
+
         #region Utilidades de Seguridad
         private static byte[] GenerateSalt()
         {
@@ -246,6 +327,46 @@ namespace appColabDigital
         {
             FailedLoginAttempts = 0;
             LockoutEndDate = null;
+        }
+    }
+
+    public class AppTask
+    {
+        public string Description { get; }
+        public string AssignedBy { get; }
+        public DateTime Timestamp { get; }
+
+        public AppTask(string description, string assignedBy)
+        {
+            Description = description;
+            AssignedBy = assignedBy;
+            Timestamp = DateTime.Now;
+        }
+
+        public override string ToString()
+        {
+            // Resalta las menciones para una mejor visualización
+            var formattedDescription = Regex.Replace(Description, @"(@\w+)", "-> $1 <--");
+            return $"[{Timestamp:g}] Tarea de {AssignedBy}: {formattedDescription}";
+        }
+    }
+
+    public class AppEvent
+    {
+        public string Description { get; }
+        public DateTime EventDate { get; }
+        public string CreatedBy { get; }
+
+        public AppEvent(string description, DateTime eventDate, string createdBy)
+        {
+            Description = description;
+            EventDate = eventDate;
+            CreatedBy = createdBy;
+        }
+
+        public override string ToString()
+        {
+            return $"[{EventDate:D}] {Description} (Creado por: {CreatedBy})";
         }
     }
     #endregion
