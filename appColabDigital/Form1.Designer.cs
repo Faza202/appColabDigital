@@ -42,5 +42,11 @@
         }
 
         #endregion
+
+        // Agrega este método en el archivo Form1.cs (no en el Designer)
+        private void Form1_Load(object sender, EventArgs e)
+        {
+            // Código de inicialización al cargar el formulario
+        }
     }
 }
